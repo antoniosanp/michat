@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 24px;
+            max-width: 720px;
+        }
+
+        h2 {
+            margin-bottom: 16px;
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        input, button {
+            padding: 8px 10px;
+            font-size: 14px;
+        }
+
+        input {
+            flex: 1 1 180px;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        #status {
+            margin: 8px 0 16px;
+            color: #555;
+        }
+
+        #messages {
+            list-style: none;
+            padding: 0;
+            margin: 16px 0 0;
+            border: 1px solid #ddd;
+        }
+
+        #messages li {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        #messages li:last-child {
+            border-bottom: 0;
+        }
+
+        .meta {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Chat privado</h2>
+
+<div class="row">
+    <input type="text" id="username" placeholder="Tu nombre">
+    <button id="connectButton" onclick="connect()">Conectar</button>
+</div>
+
+<div id="status">Desconectado</div>
+
+<div class="row">
+    <input type="text" id="receiver" placeholder="Destinatario">
+    <input type="text" id="message" placeholder="Mensaje">
+    <button id="sendButton" onclick="sendMessage()" disabled>Enviar</button>
+</div>
+
+<ul id="messages"></ul>
+
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+
+<script>
+    let stompClient = null;
+    let currentSubscription = null;
+    let currentUser = "";
+
+    const usernameInput = document.getElementById("username");
+    const receiverInput = document.getElementById("receiver");
+    const messageInput = document.getElementById("message");
+    const statusElement = document.getElementById("status");
+    const sendButton = document.getElementById("sendButton");
+    const connectButton = document.getElementById("connectButton");
+    const messagesList = document.getElementById("messages");
+
+    function setStatus(text) {
+        statusElement.textContent = text;
+    }
+
+    function appendMessage(label, content) {
+        const li = document.createElement("li");
+        const meta = document.createElement("span");
+        const text = document.createElement("span");
+
+        meta.className = "meta";
+        meta.textContent = label;
+        text.textContent = content;
+
+        li.appendChild(meta);
+        li.appendChild(text);
+        messagesList.appendChild(li);
+    }
+
+    function connect() {
+        const username = usernameInput.value.trim();
+
+        if (!username) {
+            setStatus("Ingresa tu nombre para conectar.");
+            usernameInput.focus();
+            return;
+        }
+
+        if (stompClient && stompClient.connected && currentUser === username) {
+            setStatus("Ya estas conectado como " + username + ".");
+            return;
+        }
+
+        currentUser = username;
+        const socket = new SockJS("/chat");
+        stompClient = Stomp.over(socket);
+        stompClient.debug = null;
+
+        setStatus("Conectando...");
+
+        stompClient.connect({}, function () {
+            if (currentSubscription) {
+                currentSubscription.unsubscribe();
+            }
+
+            currentSubscription = stompClient.subscribe("/topic/private" + currentUser, function (message) {
+                const chatMessage = JSON.parse(message.body);
+                appendMessage(chatMessage.senderId + " -> " + chatMessage.receiverId, chatMessage.content);
+            });
+
+            setStatus("Conectado como " + currentUser + ".");
+            sendButton.disabled = false;
+            connectButton.disabled = true;
+            usernameInput.disabled = true;
+            receiverInput.focus();
+        }, function () {
+            setStatus("No fue posible conectar.");
+            sendButton.disabled = true;
+        });
+    }
+
+    function sendMessage() {
+        if (!stompClient || !stompClient.connected) {
+            setStatus("Debes conectarte antes de enviar mensajes.");
+            return;
+        }
+
+        const senderId = currentUser;
+        const receiverId = receiverInput.value.trim();
+        const content = messageInput.value.trim();
+
+        if (!receiverId || !content) {
+            setStatus("Completa destinatario y mensaje.");
+            return;
+        }
+
+        const payload = {
+            senderId,
+            receiverId,
+            content
+        };
+
+        stompClient.send("/app/private-message", {}, JSON.stringify(payload));
+        appendMessage("Yo -> " + receiverId, content);
+        messageInput.value = "";
+        messageInput.focus();
+        setStatus("Mensaje enviado a " + receiverId + ".");
+    }
+
+    messageInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+            sendMessage();
+        }
+    });
+</script>
+
+</body>
+</html>
