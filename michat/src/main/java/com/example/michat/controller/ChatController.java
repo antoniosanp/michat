@@ -8,6 +8,7 @@ import org.springframework.stereotype.Controller;
 
 @Controller
 @RequiredArgsConstructor
+
 public class ChatController {
 
     private final SimpMessagingTemplate messagingTemplate;
@@ -15,7 +16,7 @@ public class ChatController {
     @MessageMapping("/private-message")
     public void sendPrivateMessage(ChatMessage message){
 
-        messagingTemplate.convertAndSend("/topic/private" + message.receiverId(), message);
+        messagingTemplate.convertAndSend("/topic/private/" + message.receiverId(), message);
 
 
     }

@@ -143,7 +143,7 @@
                 currentSubscription.unsubscribe();
             }
 
-            currentSubscription = stompClient.subscribe("/topic/private" + currentUser, function (message) {
+            currentSubscription = stompClient.subscribe("/topic/private/" + currentUser, function (message) {
                 const chatMessage = JSON.parse(message.body);
                 appendMessage(chatMessage.senderId + " -> " + chatMessage.receiverId, chatMessage.content);
             });
